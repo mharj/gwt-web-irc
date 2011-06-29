@@ -6,5 +6,6 @@ public class ChatTable extends FlexTable {
 	public Integer idx=0;
 	public ChatTable() {
 		super();
+		this.setStyleName("chat_table");
 	}
 }

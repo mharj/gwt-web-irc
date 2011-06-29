@@ -22,14 +22,18 @@ import com.google.gwt.event.logical.shared.SelectionEvent;
 import com.google.gwt.event.logical.shared.SelectionHandler;
 import com.google.gwt.event.shared.HandlerManager;
 import com.google.gwt.i18n.client.DateTimeFormat;
+import com.google.gwt.user.client.Cookies;
 import com.google.gwt.user.client.Timer;
 import com.google.gwt.user.client.Window;
 import com.google.gwt.user.client.rpc.AsyncCallback;
 import com.google.gwt.user.client.ui.Button;
+import com.google.gwt.user.client.ui.CheckBox;
 import com.google.gwt.user.client.ui.DialogBox;
 import com.google.gwt.user.client.ui.DockLayoutPanel;
 import com.google.gwt.user.client.ui.FlexTable;
 import com.google.gwt.user.client.ui.HTML;
+import com.google.gwt.user.client.ui.HasHorizontalAlignment;
+import com.google.gwt.user.client.ui.HorizontalPanel;
 import com.google.gwt.user.client.ui.Label;
 import com.google.gwt.user.client.ui.RootLayoutPanel;
 import com.google.gwt.user.client.ui.ScrollPanel;
@@ -41,6 +45,10 @@ import com.google.gwt.user.client.ui.VerticalPanel;
  * Entry point classes define <code>onModuleLoad()</code>.
  */
 public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandler {
+	final long ONE_YEAR = 1000 * 60 * 60 * 24 * 31 * 12; // year
+	HorizontalPanel cookiePanel = new HorizontalPanel();
+	CheckBox cookieCheck = new CheckBox();	
+	private Long timestamp=0L; 
 	private HandlerManager eventBus = new HandlerManager(this);
 	VerticalPanel user_list = new VerticalPanel();
 	ScrollPanel user_list_scroll = new ScrollPanel(user_list);
@@ -61,14 +69,17 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 	private final TextBox  port = new TextBox();
 	private final TextBox  password = new TextBox ();
 	private final Button  loginButton = new Button ("Connect");
-	
 	private static final String SERVER_ERROR = "An error occurred while attempting to contact the server. Please check your network connection and try again.";
 	private final IrcServiceAsync ircService = GWT.create(IrcService.class);
-
 	public void onModuleLoad() {
 		login.hide();
+		raw.setStyleName("raw");
+		// extract cookies
+		nick.setValue(Cookies.getCookie("nick"));
+		server.setValue(Cookies.getCookie("server"));
+		port.setValue(Cookies.getCookie("port"));
+		password.setValue(Cookies.getCookie("password"));
 		eventBus.addHandler(LoginRequiredEvent.TYPE, this);
-		
 		channels.put("SERVER", new ChatTable());
 		tabPanel.setAnimationDuration(250);
 		tabPanel.setWidth("100%");
@@ -102,6 +113,8 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 		      }
 		});
 		port.setValue("6667");
+		cookiePanel.add(new HTML("Remember:"));
+		cookiePanel.add(cookieCheck);
 		loginTable.setWidget(0, 0, new HTML("Nick:"));
 		loginTable.setWidget(0, 1, nick);
 		loginTable.setWidget(1, 0, new HTML("Server:"));
@@ -109,11 +122,12 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 		loginTable.setWidget(1, 2, port);
 		loginTable.setWidget(2, 0, new HTML("Password:"));
 		loginTable.setWidget(2, 1, password);
+		loginTable.setWidget(3, 0, cookiePanel);
 		loginTable.setWidget(3, 1, loginButton);		
 		login.setHTML("IRC Connect:");
 		login.setWidget(loginTable);
-		p.addNorth(title, 3);
-		p.addSouth(raw, 3);
+		p.addNorth(title, 2);
+		p.addSouth(raw, 2);
 		p.addEast(user_list_scroll, 10);
 		p.add(tabPanel);
 		RootLayoutPanel.get().add(p);
@@ -148,7 +162,7 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 	}
 	public void runPulse() {
 		if ( pulseRunning == true ) {
-			ircService.getPulse(new AsyncCallback<IrcContainer>() {
+			ircService.getPulse(timestamp,new AsyncCallback<IrcContainer>() {
 				public void onFailure(Throwable caught) {
 					pulseRunning=false;
 				}
@@ -163,14 +177,16 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 								if (! channels.containsKey(c.channel)  ) {
 									channels.put(c.channel, new ChatTable());
 									chan_scroll.put(c.channel, new ScrollPanel(channels.get(c.channel)));
+									chan_scroll.get(c.channel).setStyleName("scroll_list");
 									chan_scroll.get(c.channel).setTitle(c.channel);
 									tabPanel.add(chan_scroll.get(c.channel),c.channel);
 								}
 								Integer idx = channels.get(c.channel).getRowCount();
 								Label uu=new Label(c.user);
 								uu.setTitle(c.host);
-								channels.get(c.channel).setWidget(idx,0,new HTML(dateFormat.format(date) ));
+								channels.get(c.channel).setWidget(idx,0,new HTML("["+dateFormat.format(date)+"]") );
 								channels.get(c.channel).setWidget(idx,1,uu);
+								channels.get(c.channel).getFlexCellFormatter().setHorizontalAlignment(idx, 1, HasHorizontalAlignment.ALIGN_RIGHT);
 								channels.get(c.channel).setWidget(idx,2,new HTML(c.msg));
 								
 								// max row size
@@ -179,6 +195,8 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 								}
 								chan_scroll.get(c.channel).scrollToBottom();
 							}
+							// lets update timestamp
+							timestamp=result.msg_buffer.get((result.msg_buffer.size()-1)).timestamp;
 						}
 						// topic
 						if ( result.topic != null ) {
@@ -224,10 +242,18 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 							pulseRunning=true;
 							login.hide();
 							runPulse();
+							if ( cookieCheck.getValue() == true ) {
+								Date expires = new Date(System.currentTimeMillis()+ONE_YEAR);
+								Cookies.setCookie("nick", nick.getValue(),expires, null, "/", false);
+								Cookies.setCookie("server", server.getValue(),expires, null, "/", false);
+								Cookies.setCookie("port", port.getValue(),expires, null, "/", false);
+								Cookies.setCookie("password", password.getValue(),expires, null, "/", false);
+							}							
 						}
 					}
 				});
 			}
-		});		
+		});	
+	
 	}
 }

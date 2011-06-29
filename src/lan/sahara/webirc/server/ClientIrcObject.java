@@ -2,19 +2,21 @@ package lan.sahara.webirc.server;
 
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
+import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.Map.Entry;
+import java.util.Set;
 import java.util.TreeMap;
 import lan.sahara.webirc.shared.IrcEntry;
 import org.jibble.pircbot.*;
 
 public class ClientIrcObject extends PircBot {
-	public List<IrcEntry> msg_buffer = Collections.synchronizedList(new LinkedList<IrcEntry>());
-	public List<IrcEntry> msg_buffer_cache = Collections.synchronizedList(new LinkedList<IrcEntry>());
+	public Map<Long,IrcEntry> msg_buffer_cache = Collections.synchronizedMap(new TreeMap<Long,IrcEntry>());
 	public List<String> close_channels = Collections.synchronizedList(new LinkedList<String>());
 	public Map<String,List<String>> channel_user_lists = Collections.synchronizedMap(new HashMap<String,List<String>>());
 	public Map<String,String> topic = Collections.synchronizedMap(new HashMap<String,String>());
@@ -24,25 +26,30 @@ public class ClientIrcObject extends PircBot {
 	 * 1024 row buffer
 	 */
 	public void addMsg(IrcEntry e) {
-		msg_buffer.add(e);
-		msg_buffer_cache.add(e);
-		if ( msg_buffer_cache.size() > 1024 ) {
-			Map<Long,Integer> idx = new TreeMap<Long,Integer>();
-			Iterator<IrcEntry> i=msg_buffer_cache.iterator();
-			int c=0;
-			while ( i.hasNext() ) 
-				idx.put(i.next().timestamp, c++);
-			Iterator<Integer> mi = idx.values().iterator();
-			while (  msg_buffer_cache.size() > 1024 ) {
-				msg_buffer_cache.remove(mi.next());
+//		msg_buffer.add(e);
+		try {
+			msg_buffer_cache.put(Calendar.getInstance().getTimeInMillis(), e);
+			Thread.sleep(10);
+		} catch (InterruptedException te) {
+			te.printStackTrace();
+		}
+		while ( msg_buffer_cache.size() > 1024 ) {
+			for ( Entry<Long, IrcEntry> c : msg_buffer_cache.entrySet() ) 
+				msg_buffer_cache.remove(c.getKey());
+		}
+	}
+	public Boolean checkStatus(Long timestamp) {
+		Boolean ret=false;
+		// check new msg from buffer_cache
+		synchronized(msg_buffer_cache){
+			Iterator<Long> i=msg_buffer_cache.keySet().iterator();
+			while ( i.hasNext()) {
+				if ( timestamp < i.next() )
+					ret=true;
 			}
 		}
-		
-	}
-	public Boolean checkStatus() {
-		Boolean ret=false;
-		if ( msg_buffer != null && msg_buffer.size() > 0 )
-				ret=true;
+//		if ( msg_buffer != null && msg_buffer.size() > 0 )
+//				ret=true;
 		if (close_channels != null && close_channels.size() > 0 )
 				ret=true;
 		if ( channel_user_lists != null && channel_user_lists.size() > 0 )
@@ -129,7 +136,7 @@ public class ClientIrcObject extends PircBot {
 		}
 	}
 	public void onMode(String channel, String sourceNick, String sourceLogin, String sourceHostname, String mode) {
-		msg_buffer.add(new IrcEntry(System.currentTimeMillis(),0,channel,sourceNick,sourceLogin+"@"+sourceHostname,"MODE: "+mode));
+		addMsg(new IrcEntry(System.currentTimeMillis(),0,channel,sourceNick,sourceLogin+"@"+sourceHostname,"MODE: "+mode));
 	}
 	public void onUserList(String channel, User[] users) {
 		for (User s : users ) {

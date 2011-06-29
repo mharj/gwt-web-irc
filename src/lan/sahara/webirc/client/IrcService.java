@@ -7,7 +7,7 @@ import com.google.gwt.user.client.rpc.RemoteServiceRelativePath;
 
 @RemoteServiceRelativePath("irc")
 public interface IrcService  extends RemoteService {
-	public IrcContainer getPulse() throws IllegalArgumentException;
+	public IrcContainer getPulse(Long timestamp) throws IllegalArgumentException;
 	public Boolean reload() throws IllegalArgumentException;
 	public Boolean login(String nick,String server,String port,String password) throws IllegalArgumentException;
 	public Boolean logout() throws IllegalArgumentException;

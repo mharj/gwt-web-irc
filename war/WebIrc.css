@@ -9,6 +9,9 @@ h1 {
   margin: 40px 0px 70px;
   text-align: center;
 }
+body {
+	background-color: black !important;
+}
 
 .sendButton {
   display: block;
@@ -31,4 +34,31 @@ h1 {
 /** Set ids using widget.getElement().setId("idOfElement") */
 #closeButton {
   margin: 15px 6px 6px;
+}
+
+.gwt-HTML {
+	color: white;
+}
+
+.chat_table {
+	border-collapse: collapse;
+	margin: 0px !important;
+	padding: 0px !important;
+
+}
+.chat_table TD {
+	border-left: 1px dashed #555;
+	color: white;
+	padding-left: 0.25em;
+	padding-right: 0.25em;
+}
+.scroll_list {
+	background-color: black;
+	margin: 0px !important;
+	padding: 0px !important;
+}
+.raw {
+	background-color: black !important;
+	color: white !important;
+	border: 0px;
 }

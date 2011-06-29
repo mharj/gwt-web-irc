@@ -4,7 +4,7 @@ import lan.sahara.webirc.shared.IrcContainer;
 import com.google.gwt.user.client.rpc.AsyncCallback;
 
 public interface IrcServiceAsync {
-	void getPulse(AsyncCallback<IrcContainer> callback) throws IllegalArgumentException;
+	void getPulse(Long timestamp,AsyncCallback<IrcContainer> callback) throws IllegalArgumentException;
 	void reload(AsyncCallback<Boolean> callback) throws IllegalArgumentException;
 	void login(String nick,String server,String port,String password,AsyncCallback<Boolean> callback) throws IllegalArgumentException;
 	void logout(AsyncCallback<Boolean> callback) throws IllegalArgumentException;

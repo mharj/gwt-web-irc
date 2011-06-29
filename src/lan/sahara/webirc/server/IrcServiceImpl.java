@@ -40,7 +40,12 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 			}
 		}, 0, 10000);
 	}
-	public IrcContainer getPulse() throws IllegalArgumentException {
+	
+	/*
+	 * TODO: use timestamp to get missing
+	 * @see lan.sahara.webirc.client.IrcService#getPulse(java.lang.Long)
+	 */
+	public IrcContainer getPulse(Long timestamp) throws IllegalArgumentException {
 		HttpSession session=this.getThreadLocalRequest().getSession();
 		String sid=session.getId();		
 		if ( ! ircConnections.containsKey(sid) ) {
@@ -48,26 +53,20 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 		}
 		ircConnections.get(sid).seen =  System.currentTimeMillis();
 		long wait=Calendar.getInstance().getTimeInMillis()+30000; // 30sec pulse
-		while ( ircConnections.get(sid).checkStatus() != true  && wait > Calendar.getInstance().getTimeInMillis() ) {
+		while ( ircConnections.get(sid).checkStatus(timestamp) != true  && wait > Calendar.getInstance().getTimeInMillis() ) {
 			try {
 				Thread.sleep(100);
 			} catch (InterruptedException e) {
 				throw new IllegalArgumentException("restart"); // disable spamming
 			}
 		}
-		// this traps browser reload (don't give data out for last ajax when reload happens)
-		Boolean reloadState = (Boolean)session.getAttribute("reload");
-		if ( reloadState != null && reloadState == true ) {
+		if ( (Boolean)session.getAttribute("reload") != null ) {
 			session.removeAttribute("reload");
 			return null;
 		}
-		if ( ircConnections.get(sid).checkStatus() == true ) {
+		if ( ircConnections.get(sid).checkStatus(timestamp) == true ) {
 			IrcContainer ret = new IrcContainer();
 			synchronized(ircConnections.get(sid)){
-				if ( ircConnections.get(sid).msg_buffer.size() > 0 ) {
-					ret.msg_buffer = new LinkedList<IrcEntry>(ircConnections.get(sid).msg_buffer);
-					ircConnections.get(sid).msg_buffer.clear();
-				}
 				if ( ircConnections.get(sid).close_channels.size() > 0 ) {
 					ret.close_channels = new LinkedList<String>(ircConnections.get(sid).close_channels);
 					ircConnections.get(sid).close_channels.clear();
@@ -79,6 +78,17 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 				if ( ircConnections.get(sid).topic.size() > 0 ) {
 					ret.topic = new HashMap<String,String>(ircConnections.get(sid).topic);
 					ircConnections.get(sid).topic.clear();
+				}
+				// read message buffer
+				for ( Entry<Long, IrcEntry> c : ircConnections.get(sid).msg_buffer_cache.entrySet() ) {
+					if ( timestamp < c.getKey()  ) {
+						if ( ret.msg_buffer == null )
+							ret.msg_buffer = new LinkedList<IrcEntry>();
+						ret.msg_buffer.add(c.getValue());
+						// let's limit max lines with one pulse
+						if ( ret.msg_buffer.size() > 100 ) 
+							break;
+					}
 				}
 			}
 			return ret;
@@ -102,16 +112,13 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 					// load topics from topic_cache
 					for ( Entry<String, String> c : ircConnections.get(sid).topic_cache.entrySet() ) 
 						ircConnections.get(sid).topic.put(c.getKey(),c.getValue());
-					// load msgs from buffer
-					ListIterator<IrcEntry> i=ircConnections.get(sid).msg_buffer_cache.listIterator();
-					while ( i.hasNext() ) 
-						ircConnections.get(sid).msg_buffer.add(i.next());
 				}
 			}
 			return true;
 		}
 		return false;
 	}
+	
 	public Boolean login(String nick, String server,String port, String password) throws IllegalArgumentException {
 		HttpSession session=this.getThreadLocalRequest().getSession();
 		String sid=session.getId();

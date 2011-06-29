@@ -1,0 +1,7 @@
+
+syntax: regexp
+^war/WEB-INF/lib$
+syntax: regexp
+^war/WEB-INF/deploy$
+syntax: regexp
+^war/webirc/.*?$

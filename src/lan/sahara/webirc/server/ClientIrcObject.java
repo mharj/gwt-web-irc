@@ -26,11 +26,13 @@ public class ClientIrcObject extends PircBot {
 	 */
 	public void addMsg(IrcEntry e) {
 //		msg_buffer.add(e);
-		try {
-			msg_buffer_cache.put(Calendar.getInstance().getTimeInMillis(), e);
-			Thread.sleep(10);
-		} catch (InterruptedException te) {
-			te.printStackTrace();
+		synchronized(msg_buffer_cache){
+			try {
+				msg_buffer_cache.put(Calendar.getInstance().getTimeInMillis(), e);
+				Thread.sleep(10);
+			} catch (InterruptedException te) {
+				te.printStackTrace();
+			}
 		}
 		while ( msg_buffer_cache.size() > 1024 ) {
 			for ( Entry<Long, IrcEntry> c : msg_buffer_cache.entrySet() ) 

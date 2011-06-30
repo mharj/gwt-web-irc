@@ -1,6 +1,11 @@
-<project name="opmed" basedir="." default="default">
-	<target name="default" depends="buildwar,deploy"></target>
- 	<target name="buildwar">
+<project name="webirc" basedir="." default="default">
+	<target name="default" depends="jar,buildwar,deploy"></target>
+	<target name="jar" description="creates a module JAR that other GWT applications can use">
+    	<jar destfile="build/${ant.project.name}.jar">
+			<fileset dir="war/WEB-INF/classes"/>
+    	</jar>
+  	</target>
+ 	<target name="buildwar" depends="jar">
 		<war basedir="war" destfile="webirc.war" webxml="war/WEB-INF/web.xml">
 			<exclude name="WEB-INF/**" />
 			<webinf dir="war/WEB-INF/">
@@ -8,7 +13,7 @@
 			</webinf>
 		</war>
 	</target>
-	<target name="deploy">
+	<target name="deploy" depends="buildwar">
 		<copy file="webirc.war" todir="." />
 	</target>
  </project>

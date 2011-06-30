@@ -113,14 +113,24 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 		      }
 		});
 		port.setValue("6667");
-		cookiePanel.add(new HTML("Remember:"));
+		HTML nickHtml = new HTML("Nick:");
+		nickHtml.setStyleName("back");
+		HTML serverHtml = new HTML("Server:");
+		serverHtml.setStyleName("back");
+		HTML passwordHtml = new HTML("Password:");
+		passwordHtml.setStyleName("back");
+
+		HTML cookieHtml = new HTML("Remember:");
+		cookieHtml.setStyleName("back");
+		cookiePanel.add(cookieHtml);
 		cookiePanel.add(cookieCheck);
-		loginTable.setWidget(0, 0, new HTML("Nick:"));
+		
+		loginTable.setWidget(0, 0, nickHtml);
 		loginTable.setWidget(0, 1, nick);
-		loginTable.setWidget(1, 0, new HTML("Server:"));
+		loginTable.setWidget(1, 0, serverHtml);
 		loginTable.setWidget(1, 1, server);
 		loginTable.setWidget(1, 2, port);
-		loginTable.setWidget(2, 0, new HTML("Password:"));
+		loginTable.setWidget(2, 0, passwordHtml);
 		loginTable.setWidget(2, 1, password);
 		loginTable.setWidget(3, 0, cookiePanel);
 		loginTable.setWidget(3, 1, loginButton);		

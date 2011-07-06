@@ -3,13 +3,13 @@ package lan.sahara.webirc.client;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.Iterator;
-import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.Map.Entry;
 import lan.sahara.webirc.events.LoginRequiredEvent;
 import lan.sahara.webirc.shared.IrcContainer;
 import lan.sahara.webirc.shared.IrcEntry;
+import lan.sahara.webirc.shared.IrcUser;
 import com.google.gwt.core.client.EntryPoint;
 import com.google.gwt.core.client.GWT;
 import com.google.gwt.dom.client.Style.Unit;
@@ -47,6 +47,7 @@ import com.google.gwt.user.client.ui.VerticalPanel;
 public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandler {
 	final long ONE_YEAR = 1000 * 60 * 60 * 24 * 31 * 12; // year
 	HorizontalPanel cookiePanel = new HorizontalPanel();
+	private Button disconnect = new Button("Disconnect");
 	CheckBox cookieCheck = new CheckBox();	
 	private Long timestamp=0L; 
 	private HandlerManager eventBus = new HandlerManager(this);
@@ -56,7 +57,7 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 	TabLayoutPanel tabPanel = new TabLayoutPanel(2.5, Unit.EM);
 	Map<String,ChatTable> channels = new HashMap<String,ChatTable>();
 	Map<String,ScrollPanel> chan_scroll = new HashMap<String,ScrollPanel>();
-	Map<String,List<String>> channel_user_lists = new HashMap<String,List<String>>();
+	Map<String,Map<String,IrcUser>> channel_user_lists = new HashMap<String,Map<String,IrcUser>>();
 	Map<String,String> topic = new HashMap<String,String>();
 	HTML title = new HTML("MENU");
 	private DateTimeFormat dateFormat = DateTimeFormat.getFormat("HH:mm:ss");
@@ -72,6 +73,10 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 	private static final String SERVER_ERROR = "An error occurred while attempting to contact the server. Please check your network connection and try again.";
 	private final IrcServiceAsync ircService = GWT.create(IrcService.class);
 	public void onModuleLoad() {
+		HorizontalPanel title_panel = new HorizontalPanel();
+		title_panel.add(title);
+		title_panel.add(disconnect);
+		title_panel.setCellWidth(title, "100%");
 		login.hide();
 		raw.setStyleName("raw");
 		// extract cookies
@@ -85,6 +90,48 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 		tabPanel.setWidth("100%");
 		tabPanel.setHeight("100%");
 		raw.setWidth("100%");
+		loginButton.addClickHandler(new ClickHandler(){
+			public void onClick(ClickEvent event) {
+				loginButton.setEnabled(false);
+				pulseRunning=false;
+				ircService.login(nick.getValue(), server.getValue(),port.getValue(),password.getValue(),new AsyncCallback<Boolean>() {
+					public void onFailure(Throwable caught) {
+						Window.alert(SERVER_ERROR);
+					}
+					public void onSuccess(Boolean result) {
+						if ( result == true ) {
+							pulseRunning=true;
+							login.hide();
+							loginButton.setEnabled(true);
+							runPulse();
+							if ( cookieCheck.getValue() == true ) {
+								Date expires = new Date(System.currentTimeMillis()+ONE_YEAR);
+								Cookies.setCookie("nick", nick.getValue(),expires, null, "/", false);
+								Cookies.setCookie("server", server.getValue(),expires, null, "/", false);
+								Cookies.setCookie("port", port.getValue(),expires, null, "/", false);
+								Cookies.setCookie("password", password.getValue(),expires, null, "/", false);
+							}							
+						}
+					}
+				});
+			}
+		});	
+		disconnect.addClickHandler(new ClickHandler(){
+			public void onClick(ClickEvent event) {
+				ircService.logout(new AsyncCallback<Boolean>() {
+					public void onFailure(Throwable caught) {
+						// TODO Auto-generated method stub
+						
+					}
+					public void onSuccess(Boolean result) {
+						pulseRunning=false;
+						tabPanel.clear();
+						eventBus.fireEvent(new LoginRequiredEvent());
+					}
+				});
+			}
+		});
+		
 		tabPanel.addSelectionHandler(new SelectionHandler<Integer>() {
 		      public void onSelection(SelectionEvent<Integer> event) {
 		    	  final ScrollPanel current = (ScrollPanel) tabPanel.getWidget(event.getSelectedItem());
@@ -98,9 +145,8 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 		    	  String channel = current.getTitle();
 		    	  user_list.clear();
 		    	  if ( channel_user_lists.containsKey(channel) ) {
-		    		  Iterator<String> i = channel_user_lists.get(channel).iterator();
-		    		  while ( i.hasNext()) {
-		    			  user_list.add(new HTML(""+i.next()));
+		    		  for ( Entry<String, IrcUser> c : channel_user_lists.get(channel).entrySet() ) {
+		    			  user_list.add(new HTML(""+c.getKey()));
 		    		  }
 		    	  }
 		    	  if ( topic.containsKey(channel)) {
@@ -136,7 +182,7 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 		loginTable.setWidget(3, 1, loginButton);		
 		login.setHTML("IRC Connect:");
 		login.setWidget(loginTable);
-		p.addNorth(title, 2);
+		p.addNorth(title_panel, 2);
 		p.addSouth(raw, 2);
 		p.addEast(user_list_scroll, 10);
 		p.add(tabPanel);
@@ -158,8 +204,6 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 		});
 		ircService.reload(new AsyncCallback<Boolean>() {
 			public void onFailure(Throwable caught) {
-				// TODO Auto-generated method stub
-				
 			}
 			public void onSuccess(Boolean result) {
 				if ( result == true ) {
@@ -215,8 +259,8 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 						}
 						// update full user lists
 						if ( result.channel_user_lists != null ) {
-							for ( Entry<String, List<String>> c : result.channel_user_lists.entrySet() ) {
-								channel_user_lists.put(c.getKey(), new LinkedList<String>(c.getValue()));
+							for ( Entry<String, Map<String,IrcUser>> c : result.channel_user_lists.entrySet() ) {
+								channel_user_lists.put(c.getKey(), new TreeMap<String,IrcUser>(c.getValue()));
 							}
 						}						
 						// close tabs
@@ -241,29 +285,5 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 	@Override
 	public void onLoginRequired(LoginRequiredEvent event) {
 		login.center();
-		loginButton.addClickHandler(new ClickHandler(){
-			public void onClick(ClickEvent event) {
-				ircService.login(nick.getValue(), server.getValue(),port.getValue(),password.getValue(),new AsyncCallback<Boolean>() {
-					public void onFailure(Throwable caught) {
-						Window.alert(SERVER_ERROR);
-					}
-					public void onSuccess(Boolean result) {
-						if ( result == true ) {
-							pulseRunning=true;
-							login.hide();
-							runPulse();
-							if ( cookieCheck.getValue() == true ) {
-								Date expires = new Date(System.currentTimeMillis()+ONE_YEAR);
-								Cookies.setCookie("nick", nick.getValue(),expires, null, "/", false);
-								Cookies.setCookie("server", server.getValue(),expires, null, "/", false);
-								Cookies.setCookie("port", port.getValue(),expires, null, "/", false);
-								Cookies.setCookie("password", password.getValue(),expires, null, "/", false);
-							}							
-						}
-					}
-				});
-			}
-		});	
-	
 	}
 }

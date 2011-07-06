@@ -4,17 +4,17 @@ import java.util.Calendar;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedList;
-import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
 import java.util.Map.Entry;
 import java.util.Timer;
 import java.util.TimerTask;
-
 import javax.servlet.http.HttpSession;
 import org.jibble.pircbot.User;
 import lan.sahara.webirc.client.IrcService;
 import lan.sahara.webirc.shared.IrcContainer;
 import lan.sahara.webirc.shared.IrcEntry;
+import lan.sahara.webirc.shared.IrcUser;
 import com.google.gwt.user.server.rpc.RemoteServiceServlet;
 
 @SuppressWarnings("serial")
@@ -31,7 +31,7 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 						if ( (c.getValue().seen + 120000) < Calendar.getInstance().getTimeInMillis() ) {
 							c.getValue().quitServer("Timeout");
 							c.getValue().disconnect();
-							System.err.println("removed:"+c.getKey());
+							System.err.println("removed(time):"+c.getKey());
 							ircConnections.remove(c.getKey());
 						}
 					}
@@ -52,14 +52,16 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 		}
 		ircConnections.get(sid).seen =  System.currentTimeMillis();
 		long wait=Calendar.getInstance().getTimeInMillis()+30000; // 30sec pulse
-		while ( ircConnections.get(sid).checkStatus(timestamp) != true  && wait > Calendar.getInstance().getTimeInMillis() ) {
+		while ( ircConnections.containsKey(sid) && ircConnections.get(sid).checkStatus(timestamp) != true  && wait > Calendar.getInstance().getTimeInMillis() ) {
 			try {
 				Thread.sleep(100);
 			} catch (InterruptedException e) {
 				throw new IllegalArgumentException("restart"); // disable spamming
 			}
 		}
-		if ( (Boolean)session.getAttribute("reload") != null ) {
+		if ( ! ircConnections.containsKey(sid) ) // we did quit (button)
+			return null;
+		if ( (Boolean)session.getAttribute("reload") != null ) { // we have reload going
 			session.removeAttribute("reload");
 			return null;
 		}
@@ -71,7 +73,7 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 					ircConnections.get(sid).close_channels.clear();
 				}
 				if ( ircConnections.get(sid).channel_user_lists.size() > 0 ) {
-					ret.channel_user_lists = new HashMap<String,List<String>>(ircConnections.get(sid).channel_user_lists);
+					ret.channel_user_lists = new HashMap<String,Map<String,IrcUser>>(ircConnections.get(sid).channel_user_lists);
 					ircConnections.get(sid).channel_user_lists.clear();
 				}
 				if ( ircConnections.get(sid).topic.size() > 0 ) {
@@ -104,9 +106,9 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 				ircConnections.get(sid).seen =  System.currentTimeMillis();
 				String channels[] = ircConnections.get(sid).getChannels();
 				for ( String chan : channels ) {
-					List<String> users = new LinkedList<String>();
+					Map<String,IrcUser> users = new TreeMap<String,IrcUser>();
 					for ( User u : ircConnections.get(sid).getUsers(chan) ) 
-						users.add(u.getNick());
+						users.put(u.getNick(),new IrcUser(u.getPrefix()) );
 					ircConnections.get(sid).channel_user_lists.put(chan,users);
 					// load topics from topic_cache
 					for ( Entry<String, String> c : ircConnections.get(sid).topic_cache.entrySet() ) 
@@ -124,15 +126,28 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 		if ( ! ircConnections.containsKey(sid) ) {
 			ircConnections.put(sid, new ClientIrcObject(nick,server,port,password));
 			ircConnections.get(sid).seen =  System.currentTimeMillis();
+			System.err.println("connected:"+sid);
 		} else {
 			ircConnections.get(sid).runReConnect(nick,server,port,password);
 		}
 		return true;
 	}
+	
 	public Boolean logout() throws IllegalArgumentException {
+		HttpSession session=this.getThreadLocalRequest().getSession();
+		if ( session != null ) {
+			String sid=session.getId();
+			if ( ircConnections.containsKey(sid) ) {
+				ircConnections.get(sid).quitServer("Bye!");
+				ircConnections.get(sid).disconnect();
+				ircConnections.remove(sid);
+				System.err.println("removed(button):"+sid);
+			}
+			session.invalidate();
+		}
 		return null;
 	}
-	@Override
+
 	public Boolean send(String msg,String target) throws IllegalArgumentException {
 		System.err.println("target:"+target);
 		HttpSession session=this.getThreadLocalRequest().getSession();

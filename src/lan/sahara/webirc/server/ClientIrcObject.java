@@ -12,12 +12,14 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 import lan.sahara.webirc.shared.IrcEntry;
+import lan.sahara.webirc.shared.IrcUser;
+
 import org.jibble.pircbot.*;
 
 public class ClientIrcObject extends PircBot {
 	public Map<Long,IrcEntry> msg_buffer_cache = Collections.synchronizedMap(new TreeMap<Long,IrcEntry>());
 	public List<String> close_channels = Collections.synchronizedList(new LinkedList<String>());
-	public Map<String,List<String>> channel_user_lists = Collections.synchronizedMap(new HashMap<String,List<String>>());
+	public Map<String,Map<String,IrcUser>> channel_user_lists = Collections.synchronizedMap(new HashMap<String,Map<String,IrcUser>>());
 	public Map<String,String> topic = Collections.synchronizedMap(new HashMap<String,String>());
 	public Map<String,String> topic_cache = Collections.synchronizedMap(new HashMap<String,String>());
 	public long seen;
@@ -63,6 +65,7 @@ public class ClientIrcObject extends PircBot {
 		this.setLogin("webirc");
 		this.setName(nick);
 		this.setVerbose(false);
+		this.setAutoNickChange(true);
 		try {
 			this.setEncoding("UTF-8");
 		} catch (UnsupportedEncodingException e1) {
@@ -128,7 +131,7 @@ public class ClientIrcObject extends PircBot {
 	}
 	// TODO: solve channels (from memory?) where "nick" was
 	public void onQuit(String sourceNick, String sourceLogin, String sourceHostname, String reason) {
-/*		msg_buffer.add(new IrcEntry(System.currentTimeMillis(),0,channel,sourceNick,sourceLogin+"@"+sourceHostname,"Quit "+reason)); */
+		addMsg(new IrcEntry(System.currentTimeMillis(),0,"Server",sourceNick,sourceLogin+"@"+sourceHostname,"Quit "+reason)); 
 	}
 	public void onPart(String channel, String sender, String login, String hostname) {
 		addMsg(new IrcEntry(System.currentTimeMillis(),0,channel,sender,login+"@"+hostname,"Leave channel "+channel));
@@ -142,8 +145,10 @@ public class ClientIrcObject extends PircBot {
 	public void onUserList(String channel, User[] users) {
 		for (User s : users ) {
 			if ( ! channel_user_lists.containsKey(channel) ) 
-				channel_user_lists.put(channel, new LinkedList<String>());
-			channel_user_lists.get(channel).add(s.getNick());
+				channel_user_lists.put(channel, new TreeMap<String,IrcUser>());
+			channel_user_lists.get(channel).put(s.getNick(),new IrcUser(s.getPrefix()));
+			
+//			channel_user_lists.get(channel).add(s.getNick());
 		}
 	}
 	protected void onTopic(String channel, String topic, String setBy, long date, boolean changed) {

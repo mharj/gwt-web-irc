@@ -35,8 +35,10 @@ import com.google.gwt.user.client.ui.HTML;
 import com.google.gwt.user.client.ui.HasHorizontalAlignment;
 import com.google.gwt.user.client.ui.HorizontalPanel;
 import com.google.gwt.user.client.ui.Label;
+import com.google.gwt.user.client.ui.Panel;
 import com.google.gwt.user.client.ui.RootLayoutPanel;
 import com.google.gwt.user.client.ui.ScrollPanel;
+import com.google.gwt.user.client.ui.SimplePanel;
 import com.google.gwt.user.client.ui.TabLayoutPanel;
 import com.google.gwt.user.client.ui.TextBox;
 
@@ -50,16 +52,12 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 	CheckBox cookieCheck = new CheckBox();	
 	private Long timestamp=0L; 
 	private HandlerManager eventBus = new HandlerManager(this);
-//	VerticalPanel user_list = new VerticalPanel();
 	FlexTable user_list = new FlexTable();
 	ScrollPanel user_list_scroll = new ScrollPanel(user_list);
-	DockLayoutPanel p = new DockLayoutPanel(Unit.EM);
+	DockLayoutPanel p = new DockLayoutPanel(Unit.PX);
 	TabLayoutPanel tabPanel = new TabLayoutPanel(2.5, Unit.EM);
-	Map<String,ChatTable> channels = new HashMap<String,ChatTable>();
-	Map<String,ScrollPanel> chan_scroll = new HashMap<String,ScrollPanel>();
-	Map<String,Map<String,IrcUser>> channel_user_lists = new HashMap<String,Map<String,IrcUser>>();
-	Map<String,String> topic = new HashMap<String,String>();
-	HTML title = new HTML("MENU");
+	Map<String,IrcChatTable> channel_list = new HashMap<String,IrcChatTable>();
+	Panel title = new SimplePanel();
 	private DateTimeFormat dateFormat = DateTimeFormat.getFormat("HH:mm:ss");
 	private Boolean pulseRunning = false;
 	private final DialogBox login = new DialogBox();
@@ -73,11 +71,15 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 	private static final String SERVER_ERROR = "An error occurred while attempting to contact the server. Please check your network connection and try again.";
 	private final IrcServiceAsync ircService = GWT.create(IrcService.class);
 	public void onModuleLoad() {
+		title.setStyleName("WhiteText");
 		HorizontalPanel title_panel = new HorizontalPanel();
 		title_panel.add(title);
 		title_panel.add(disconnect);
 		title_panel.setCellWidth(title, "100%");
+		title_panel.setStyleName("title_panel");
+		tabPanel.addStyleName("tab_panel");
 		login.hide();
+		disconnect.setStyleName("disconnect");
 		raw.setStyleName("raw");
 		// extract cookies
 		nick.setValue(Cookies.getCookie("nick"));
@@ -85,7 +87,7 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 		port.setValue(Cookies.getCookie("port"));
 		password.setValue(Cookies.getCookie("password"));
 		eventBus.addHandler(LoginRequiredEvent.TYPE, this);
-		channels.put("SERVER", new ChatTable());
+		channel_list.put("SERVER", new IrcChatTable("SERVER"));
 		tabPanel.setAnimationDuration(250);
 		tabPanel.setWidth("100%");
 		tabPanel.setHeight("100%");
@@ -119,10 +121,7 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 		disconnect.addClickHandler(new ClickHandler(){
 			public void onClick(ClickEvent event) {
 				ircService.logout(new AsyncCallback<Boolean>() {
-					public void onFailure(Throwable caught) {
-						// TODO Auto-generated method stub
-						
-					}
+					public void onFailure(Throwable caught) {}
 					public void onSuccess(Boolean result) {
 						pulseRunning=false;
 						tabPanel.clear();
@@ -131,40 +130,37 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 				});
 			}
 		});
-		
 		tabPanel.addSelectionHandler(new SelectionHandler<Integer>() {
-		      public void onSelection(SelectionEvent<Integer> event) {
-		    	  final ScrollPanel current = (ScrollPanel) tabPanel.getWidget(event.getSelectedItem());
-		    	  current.scrollToBottom();
-		    	  Timer t = new Timer() {
-		  	    	public void run() {
-		  	    		current.scrollToBottom();	
-		  	    	}
-		    	  };
-		    	  t.schedule(100);
-		    	  String channel = current.getTitle();
-		    	  user_list.clear();
-		    	  Integer count=0;
-		    	  if ( channel_user_lists.containsKey(channel) ) {
-		    		  for ( Entry<String, IrcUser> c : channel_user_lists.get(channel).entrySet() ) {
-		    			  StringBuffer id = new StringBuffer();
-		    			  if ( c.getValue().oper == true )
-		    				  	id.append("&#9679;");
-		    			  if ( c.getValue().voice == true )
-		    				  	id.append("&#9675;");
-		    			  user_list.setWidget(count, 0, new HTML(""+id));
-		    			  user_list.setWidget(count, 1, new HTML(""+c.getKey()));
-		    			  count++;
-		    		  }
-		    	  }
-		    	  if ( topic.containsKey(channel)) {
-		    		  title.setHTML(topic.get(channel));
-		    		  Window.setTitle("["+channel+"] "+topic.get(channel));
-		    	  } else { 
-		    		  title.setHTML("");
-		    		  Window.setTitle("["+channel+"]");
-		    	  }
-		      }
+			public void onSelection(SelectionEvent<Integer> event) {
+				final IrcChatTable current = (IrcChatTable) tabPanel.getWidget(event.getSelectedItem());
+				current.scrollToBottom();
+				Timer t = new Timer() {
+					public void run() {
+						current.scrollToBottom();
+					}
+				};
+				t.schedule(100);
+				user_list.clear();
+				Integer count = 0;
+				for (Entry<String, IrcUser> c : current.user_list.entrySet()) {
+					StringBuffer id = new StringBuffer();
+					if (c.getValue().oper == true)
+						id.append("&#9679;");
+					if (c.getValue().voice == true)
+						id.append("&#9675;");
+					HTML h_id =  new HTML(id.toString());
+					Label h_uid = new Label(c.getKey());
+					h_id.setStyleName("WhiteText");
+					h_uid.setStyleName("WhiteText");
+					user_list.setWidget(count, 0,h_id);
+					user_list.setWidget(count, 1,h_uid);
+					count++;
+				}
+				// update title
+				title.clear();
+				title.add(current.topic);
+				Window.setTitle("[" + current.getName() + "] " + current.topic.getText());
+			}
 		});
 		port.setValue("6667");
 		HTML nickHtml = new HTML("Nick:");
@@ -173,12 +169,10 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 		serverHtml.setStyleName("back");
 		HTML passwordHtml = new HTML("Password:");
 		passwordHtml.setStyleName("back");
-
 		HTML cookieHtml = new HTML("Remember:");
 		cookieHtml.setStyleName("back");
 		cookiePanel.add(cookieHtml);
 		cookiePanel.add(cookieCheck);
-		
 		loginTable.setWidget(0, 0, nickHtml);
 		loginTable.setWidget(0, 1, nick);
 		loginTable.setWidget(1, 0, serverHtml);
@@ -190,16 +184,16 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 		loginTable.setWidget(3, 1, loginButton);		
 		login.setHTML("IRC Connect:");
 		login.setWidget(loginTable);
-		p.addNorth(title_panel, 2);
-		p.addSouth(raw, 2);
-		p.addEast(user_list_scroll, 10);
+		p.addNorth(title_panel, 25);
+		p.addSouth(raw, 25);
+		p.addEast(user_list_scroll, 140);
 		p.add(tabPanel);
 		RootLayoutPanel.get().add(p);
 		raw.addKeyUpHandler(new KeyUpHandler() {
 			public void onKeyUp(KeyUpEvent event) {
 				if (event.getNativeKeyCode() == KeyCodes.KEY_ENTER && raw.getValue().length() > 0 ) {
-					String target=tabPanel.getWidget(tabPanel.getSelectedIndex()).getTitle();
-					ircService.send(raw.getValue(),target,new AsyncCallback<Boolean>() {
+					IrcChatTable target=(IrcChatTable)tabPanel.getWidget(tabPanel.getSelectedIndex());
+					ircService.send(raw.getValue(),target.getName(),new AsyncCallback<Boolean>() {
 						public void onFailure(Throwable caught) {}
 						public void onSuccess(Boolean result) {
 							raw.setValue("");
@@ -235,50 +229,37 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 							while ( i.hasNext() ) {
 								IrcEntry c = i.next();
 								Date date = new Date(c.timestamp);
-								if (! channels.containsKey(c.channel)  ) {
-									channels.put(c.channel, new ChatTable());
-									chan_scroll.put(c.channel, new ScrollPanel(channels.get(c.channel)));
-									chan_scroll.get(c.channel).setStyleName("scroll_list");
-									chan_scroll.get(c.channel).setTitle(c.channel);
-									tabPanel.add(chan_scroll.get(c.channel),c.channel);
+								if ( ! channel_list.containsKey(c.channel) ) {
+									channel_list.put(c.channel,new IrcChatTable(c.channel));
+									tabPanel.add(channel_list.get(c.channel),c.channel);	
 								}
-								Integer idx = channels.get(c.channel).getRowCount();
 								Label uu=new Label(c.user);
+								uu.setStyleName("WhiteText");
 								uu.setTitle(c.host);
-								channels.get(c.channel).setWidget(idx,0,new HTML("["+dateFormat.format(date)+"]") );
-								channels.get(c.channel).setWidget(idx,1,uu);
-								channels.get(c.channel).getFlexCellFormatter().setHorizontalAlignment(idx, 1, HasHorizontalAlignment.ALIGN_RIGHT);
-								channels.get(c.channel).setWidget(idx,2,new HTML(c.msg));
-								
-								// max row size
-								while (channels.get(c.channel).getRowCount() > 256  )  {
-									channels.get(c.channel).removeRow(0);
-								}
-								chan_scroll.get(c.channel).scrollToBottom();
+								Integer idx = channel_list.get(c.channel).chat_table.getRowCount();
+								channel_list.get(c.channel).chat_table.setWidget(idx,0,new HTML("["+dateFormat.format(date)+"]") );
+								channel_list.get(c.channel).chat_table.setWidget(idx,1,uu);
+								channel_list.get(c.channel).chat_table.getFlexCellFormatter().setHorizontalAlignment(idx, 1, HasHorizontalAlignment.ALIGN_RIGHT);
+								channel_list.get(c.channel).chat_table.setWidget(idx,2,new HTML(c.msg));
+								channel_list.get(c.channel).limitChatCount(256);
+								channel_list.get(c.channel).scrollToBottom();
 							}
 							// lets update timestamp
 							if ( result.timestamp != null )
 								timestamp=result.timestamp;
 						}
 						// topic
-						// TODO: update current topic if in "channel"
 						if ( result.topic != null ) {
-							for ( Entry<String, String> c : result.topic.entrySet() ) 
-								topic.put(c.getKey(),c.getValue());
-
-							String channel=tabPanel.getWidget(tabPanel.getSelectedIndex()).getTitle();
-							if ( topic.containsKey(channel)) {
-								title.setHTML(topic.get(channel));
-								Window.setTitle("["+channel+"] "+topic.get(channel));
-							} else { 
-								title.setHTML("");
-								Window.setTitle("["+channel+"]");
-							}									
+							for ( Entry<String, String> c : result.topic.entrySet() ) {
+								if ( channel_list.containsKey(c.getKey())) 
+									channel_list.get(c.getKey()).topic.setText(c.getValue());
+							}
 						}
 						// update full user lists
 						if ( result.channel_user_lists != null ) {
 							for ( Entry<String, Map<String,IrcUser>> c : result.channel_user_lists.entrySet() ) {
-								channel_user_lists.put(c.getKey(), new TreeMap<String,IrcUser>(c.getValue()));
+								if ( channel_list.containsKey(c.getKey())) 
+									channel_list.get(c.getKey()).user_list = new TreeMap<String,IrcUser>(c.getValue()) ;
 							}
 						}						
 						// close tabs
@@ -286,12 +267,11 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 							Iterator<String> i=result.close_channels.iterator();
 							while ( i.hasNext() ) {
 								String channel = i.next();
-								if ( tabPanel.getWidget(tabPanel.getSelectedIndex()).equals(chan_scroll.get(channel)) ) 
+								System.err.println("remove:"+channel);
+								if ( tabPanel.getWidget(tabPanel.getSelectedIndex()).equals(channel_list.get(channel)) ) 
 									tabPanel.selectTab(0);
-								tabPanel.remove(chan_scroll.get(channel));
-								channels.remove(channel);
-								chan_scroll.remove(channel);
-								channel_user_lists.remove(channel);
+								tabPanel.remove(channel_list.get(channel));
+								channel_list.remove(channel);
 							}
 						}
 					}

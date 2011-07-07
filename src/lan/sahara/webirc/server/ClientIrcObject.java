@@ -135,9 +135,8 @@ public class ClientIrcObject extends PircBot {
 	}
 	public void onPart(String channel, String sender, String login, String hostname) {
 		addMsg(new IrcEntry(System.currentTimeMillis(),0,channel,sender,login+"@"+hostname,"Leave channel "+channel));
-		if ( this.getNick().equals(sender) ) {
+		if ( this.getNick().equals(sender) ) 
 			close_channels.add(channel);
-		}
 	}
 	public void onMode(String channel, String sourceNick, String sourceLogin, String sourceHostname, String mode) {
 		addMsg(new IrcEntry(System.currentTimeMillis(),0,channel,sourceNick,sourceLogin+"@"+sourceHostname,"MODE: "+mode));

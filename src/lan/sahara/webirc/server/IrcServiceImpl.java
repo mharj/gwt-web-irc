@@ -150,7 +150,6 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 	}
 
 	public Boolean send(String msg,String target) throws IllegalArgumentException {
-		System.err.println("target:"+target);
 		HttpSession session=this.getThreadLocalRequest().getSession();
 		String sid=session.getId();		
 		if ( ircConnections.containsKey(sid) ) {
@@ -215,5 +214,4 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 		}
 		return false;
 	}
-
 }

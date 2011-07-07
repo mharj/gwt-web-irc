@@ -39,7 +39,6 @@ import com.google.gwt.user.client.ui.RootLayoutPanel;
 import com.google.gwt.user.client.ui.ScrollPanel;
 import com.google.gwt.user.client.ui.TabLayoutPanel;
 import com.google.gwt.user.client.ui.TextBox;
-import com.google.gwt.user.client.ui.VerticalPanel;
 
 /**
  * Entry point classes define <code>onModuleLoad()</code>.
@@ -51,7 +50,8 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 	CheckBox cookieCheck = new CheckBox();	
 	private Long timestamp=0L; 
 	private HandlerManager eventBus = new HandlerManager(this);
-	VerticalPanel user_list = new VerticalPanel();
+//	VerticalPanel user_list = new VerticalPanel();
+	FlexTable user_list = new FlexTable();
 	ScrollPanel user_list_scroll = new ScrollPanel(user_list);
 	DockLayoutPanel p = new DockLayoutPanel(Unit.EM);
 	TabLayoutPanel tabPanel = new TabLayoutPanel(2.5, Unit.EM);
@@ -144,9 +144,17 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 		    	  t.schedule(100);
 		    	  String channel = current.getTitle();
 		    	  user_list.clear();
+		    	  Integer count=0;
 		    	  if ( channel_user_lists.containsKey(channel) ) {
 		    		  for ( Entry<String, IrcUser> c : channel_user_lists.get(channel).entrySet() ) {
-		    			  user_list.add(new HTML(""+c.getKey()));
+		    			  StringBuffer id = new StringBuffer();
+		    			  if ( c.getValue().oper == true )
+		    				  	id.append("&#9679;");
+		    			  if ( c.getValue().voice == true )
+		    				  	id.append("&#9675;");
+		    			  user_list.setWidget(count, 0, new HTML(""+id));
+		    			  user_list.setWidget(count, 1, new HTML(""+c.getKey()));
+		    			  count++;
 		    		  }
 		    	  }
 		    	  if ( topic.containsKey(channel)) {
@@ -192,8 +200,7 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 				if (event.getNativeKeyCode() == KeyCodes.KEY_ENTER && raw.getValue().length() > 0 ) {
 					String target=tabPanel.getWidget(tabPanel.getSelectedIndex()).getTitle();
 					ircService.send(raw.getValue(),target,new AsyncCallback<Boolean>() {
-						public void onFailure(Throwable caught) {
-						}
+						public void onFailure(Throwable caught) {}
 						public void onSuccess(Boolean result) {
 							raw.setValue("");
 							raw.setFocus(true);
@@ -250,12 +257,23 @@ public class WebIrc implements EntryPoint,LoginRequiredEvent.LoginRequiredHandle
 								chan_scroll.get(c.channel).scrollToBottom();
 							}
 							// lets update timestamp
-							timestamp=result.msg_buffer.get((result.msg_buffer.size()-1)).timestamp;
+							if ( result.timestamp != null )
+								timestamp=result.timestamp;
 						}
 						// topic
+						// TODO: update current topic if in "channel"
 						if ( result.topic != null ) {
 							for ( Entry<String, String> c : result.topic.entrySet() ) 
 								topic.put(c.getKey(),c.getValue());
+
+							String channel=tabPanel.getWidget(tabPanel.getSelectedIndex()).getTitle();
+							if ( topic.containsKey(channel)) {
+								title.setHTML(topic.get(channel));
+								Window.setTitle("["+channel+"] "+topic.get(channel));
+							} else { 
+								title.setHTML("");
+								Window.setTitle("["+channel+"]");
+							}									
 						}
 						// update full user lists
 						if ( result.channel_user_lists != null ) {

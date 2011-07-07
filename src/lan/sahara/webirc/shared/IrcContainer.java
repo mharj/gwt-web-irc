@@ -13,5 +13,5 @@ public class IrcContainer implements IsSerializable {
 	public Map<String,Map<String,IrcUser>> channel_user_add_lists = null;
 	public Map<String,Map<String,IrcUser>> channel_user_del_lists = null;
 	public Map<String,String> topic = null;
-
+	public Long timestamp = null;
 }

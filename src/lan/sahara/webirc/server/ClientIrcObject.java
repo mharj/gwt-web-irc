@@ -142,13 +142,22 @@ public class ClientIrcObject extends PircBot {
 	public void onMode(String channel, String sourceNick, String sourceLogin, String sourceHostname, String mode) {
 		addMsg(new IrcEntry(System.currentTimeMillis(),0,channel,sourceNick,sourceLogin+"@"+sourceHostname,"MODE: "+mode));
 	}
+
+	public void onNickChange(String oldNick, String login, String hostname, String newNick) {
+		if ( this.getNick().equals(newNick) ) 
+			addMsg(new IrcEntry(System.currentTimeMillis(),0,"Server",oldNick,login+"@"+hostname,"Nick changed to "+newNick));
+		for ( String chan : this.getChannels() ) {
+			for ( User u : this.getUsers(chan) ) {
+				if ( u.getNick() == newNick ) 
+					addMsg(new IrcEntry(System.currentTimeMillis(),0,chan,oldNick,login+"@"+hostname,"Nick changed to "+newNick));
+			}
+		}
+	}
 	public void onUserList(String channel, User[] users) {
 		for (User s : users ) {
 			if ( ! channel_user_lists.containsKey(channel) ) 
 				channel_user_lists.put(channel, new TreeMap<String,IrcUser>());
-			channel_user_lists.get(channel).put(s.getNick(),new IrcUser(s.getPrefix()));
-			
-//			channel_user_lists.get(channel).add(s.getNick());
+			channel_user_lists.get(channel).put(s.getNick(),new IrcUser(s.getPrefix(),s.isOp(),s.hasVoice()));
 		}
 	}
 	protected void onTopic(String channel, String topic, String setBy, long date, boolean changed) {

@@ -91,6 +91,7 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 							break;
 					}
 				}
+				ret.timestamp=Calendar.getInstance().getTimeInMillis();
 			}
 			return ret;
 		}
@@ -108,7 +109,7 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 				for ( String chan : channels ) {
 					Map<String,IrcUser> users = new TreeMap<String,IrcUser>();
 					for ( User u : ircConnections.get(sid).getUsers(chan) ) 
-						users.put(u.getNick(),new IrcUser(u.getPrefix()) );
+						users.put(u.getNick(),new IrcUser(u.getPrefix(),u.isOp(),u.hasVoice()) );
 					ircConnections.get(sid).channel_user_lists.put(chan,users);
 					// load topics from topic_cache
 					for ( Entry<String, String> c : ircConnections.get(sid).topic_cache.entrySet() ) 
@@ -153,16 +154,41 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 		HttpSession session=this.getThreadLocalRequest().getSession();
 		String sid=session.getId();		
 		if ( ircConnections.containsKey(sid) ) {
+			// join channel
 			if ( msg.matches("^/join .*?")) {
 				String p[]=msg.split(" ");
 				if ( p.length > 1 )
 					ircConnections.get(sid).MyJoin(p[1]);
 				return true;
 			}
+			// leave channel
 			if ( msg.matches("^/leave .*?")) {
 				String p[]=msg.split(" ");
 				if ( p.length > 1 )
 					ircConnections.get(sid).MyLeave(p[1]);
+				return true;
+			}
+			// set topic
+			if ( msg.matches("^/topic .*?")) {
+				String p[]=msg.split(" ");
+				if ( p.length > 1 ) {
+					StringBuffer real_msg = new StringBuffer();
+					for ( int i=1;i<p.length;i++) {
+						if ( real_msg.length() == 0 )
+							real_msg.append(p[i]);
+						else
+							real_msg.append(" "+p[i]);
+					}
+					ircConnections.get(sid).setTopic(target, real_msg.toString() );
+					ircConnections.get(sid).addMsg(new IrcEntry(System.currentTimeMillis(),0,target,ircConnections.get(sid).getNick(),ircConnections.get(sid).getLogin()+"@"+ircConnections.get(sid).getInetAddress(),"sets topic: "+real_msg.toString()));
+				}
+				return true;
+			}
+			// set nick
+			if ( msg.matches("^/nick .*?")) {
+				String p[]=msg.split(" ");
+				if ( p.length > 1 ) 
+					ircConnections.get(sid).changeNick(p[1]);
 				return true;
 			}
 			// priv msg (open tab for output with msg_buffer)

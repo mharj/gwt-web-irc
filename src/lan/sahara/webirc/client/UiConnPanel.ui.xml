@@ -1,0 +1,21 @@
+<!DOCTYPE ui:UiBinder SYSTEM "http://dl.google.com/gwt/DTD/xhtml.ent">
+<ui:UiBinder xmlns:ui="urn:ui:com.google.gwt.uibinder"
+	xmlns:g="urn:import:com.google.gwt.user.client.ui">
+	<ui:style>
+		.important {
+			font-weight: bold;
+		}
+		.error {
+			font-weight: bold;
+		}
+	</ui:style>
+	<g:HTMLPanel>
+   		<table>
+    		<tr><td>Nickname:</td><td><g:TextBox ui:field="nickName"/></td></tr>
+    		<tr><td>Server Name:</td><td><g:TextBox ui:field="serverName"/></td></tr>
+    		<tr><td>Server Port:</td><td><g:TextBox ui:field="serverPort" visibleLength="4" text="6669"/></td></tr>
+    		<tr><td>Server Password:</td><td><g:PasswordTextBox ui:field="serverPassword"/></td></tr>
+    		<tr><td>Remember:<g:CheckBox ui:field="cookieCheck" /></td><td align='right'><g:Button ui:field="connect">Connect</g:Button></td></tr>
+  		</table>
+	</g:HTMLPanel>
+</ui:UiBinder> 

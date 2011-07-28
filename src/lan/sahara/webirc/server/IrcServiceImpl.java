@@ -15,6 +15,8 @@ import lan.sahara.webirc.client.IrcService;
 import lan.sahara.webirc.shared.IrcContainer;
 import lan.sahara.webirc.shared.IrcEntry;
 import lan.sahara.webirc.shared.IrcUser;
+import lan.sahara.webirc.shared.IrcUserListEntry;
+
 import com.google.gwt.user.server.rpc.RemoteServiceServlet;
 
 @SuppressWarnings("serial")
@@ -41,7 +43,6 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 	}
 	
 	/*
-	 * TODO: use timestamp to get missing
 	 * @see lan.sahara.webirc.client.IrcService#getPulse(java.lang.Long)
 	 */
 	public IrcContainer getPulse(Long timestamp) throws IllegalArgumentException {
@@ -73,7 +74,7 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 					ircConnections.get(sid).close_channels.clear();
 				}
 				if ( ircConnections.get(sid).channel_user_lists.size() > 0 ) {
-					ret.channel_user_lists = new HashMap<String,Map<String,IrcUser>>(ircConnections.get(sid).channel_user_lists);
+					ret.channel_user_lists = new HashMap<String,TreeMap<String,IrcUser>>(ircConnections.get(sid).channel_user_lists);
 					ircConnections.get(sid).channel_user_lists.clear();
 				}
 				if ( ircConnections.get(sid).topic.size() > 0 ) {
@@ -86,9 +87,18 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 						if ( ret.msg_buffer == null )
 							ret.msg_buffer = new LinkedList<IrcEntry>();
 						ret.msg_buffer.add(c.getValue());
-						// let's limit max lines with one pulse
-						if ( ret.msg_buffer.size() > 100 ) 
-							break;
+					}
+				}
+				// TODO FIX BROKEN!!!
+				// read userlist buffer
+				synchronized( ircConnections.get(sid).userlist_buffer_cache ) {
+					for ( Entry<Long, IrcUserListEntry> c : ircConnections.get(sid).userlist_buffer_cache.entrySet() ) {
+						System.err.println(""+timestamp+" vs "+c.getKey());
+						if ( timestamp < c.getKey()  ) {
+							if ( ret.userlist_buffer == null )
+								ret.userlist_buffer = new TreeMap<Long, IrcUserListEntry>();
+							ret.userlist_buffer.put(c.getKey(),c.getValue());
+						}
 					}
 				}
 				ret.timestamp=Calendar.getInstance().getTimeInMillis();
@@ -98,6 +108,11 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 		return null;
 	}
 	
+	/*
+	 * TODO: hit IllegalArgumentException if no session, then use return as data
+	 * TODO: change name to "checkIrcSession"
+	 * @see lan.sahara.webirc.client.IrcService#reload()
+	 */
 	public Boolean reload() throws IllegalArgumentException {
 		HttpSession session=this.getThreadLocalRequest().getSession();
 		String sid=session.getId();
@@ -107,7 +122,7 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 				ircConnections.get(sid).seen =  System.currentTimeMillis();
 				String channels[] = ircConnections.get(sid).getChannels();
 				for ( String chan : channels ) {
-					Map<String,IrcUser> users = new TreeMap<String,IrcUser>();
+					TreeMap<String,IrcUser> users = new TreeMap<String,IrcUser>();
 					for ( User u : ircConnections.get(sid).getUsers(chan) ) 
 						users.put(u.getNick(),new IrcUser(u.getPrefix(),u.isOp(),u.hasVoice()) );
 					ircConnections.get(sid).channel_user_lists.put(chan,users);
@@ -118,6 +133,10 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 			}
 			return true;
 		}
+		// TODO: create entry to return server lists and other stuff from servlet if defined
+		// TODO: import javax.naming.InitialContext;
+		// TODO: InitialContext ic = new InitialContext();
+		// TODO: String ircServer = (String)ic.lookup("java:comp/env/IrcServer");
 		return false;
 	}
 	

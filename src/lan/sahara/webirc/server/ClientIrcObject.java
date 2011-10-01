@@ -12,13 +12,14 @@ import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
 import lan.sahara.webirc.shared.IrcEntry;
+import lan.sahara.webirc.shared.IrcEntryTypes;
 import lan.sahara.webirc.shared.IrcUser;
 import lan.sahara.webirc.shared.IrcUserListEntry;
 
 import org.jibble.pircbot.*;
 
 public class ClientIrcObject extends PircBot {
-	public TreeMap<Long,IrcEntry> msg_buffer_cache = (TreeMap<Long, IrcEntry>) Collections.synchronizedMap(new TreeMap<Long,IrcEntry>());
+	public Map<Long,IrcEntry> msg_buffer_cache = Collections.synchronizedMap(new TreeMap<Long,IrcEntry>());
 	public Map<Long,IrcUserListEntry> userlist_buffer_cache = Collections.synchronizedMap(new TreeMap<Long,IrcUserListEntry>());
 	public List<String> close_channels = Collections.synchronizedList(new LinkedList<String>());
 	public Map<String, TreeMap<String, IrcUser>> channel_user_lists = Collections.synchronizedMap(new HashMap<String,TreeMap<String,IrcUser>>());
@@ -32,15 +33,14 @@ public class ClientIrcObject extends PircBot {
 		synchronized(userlist_buffer_cache) {
 			try {
 				userlist_buffer_cache.put(Calendar.getInstance().getTimeInMillis(), e);
+				Long ct=Calendar.getInstance().getTimeInMillis();
+				for ( Entry<Long, IrcUserListEntry> c : userlist_buffer_cache.entrySet() ) {
+					if ( (c.getKey()+60000) < ct ) // remove entries older than 60sec
+						userlist_buffer_cache.remove(c.getKey());
+				}				
 				Thread.sleep(10);
 			} catch (InterruptedException te) {
 				te.printStackTrace();
-			}
-			Long ct=Calendar.getInstance().getTimeInMillis();
-			for ( Entry<Long, IrcUserListEntry> c : userlist_buffer_cache.entrySet() ) {
-				if ( (c.getKey()+60000) < ct ) // remove entries older than 60sec
-					userlist_buffer_cache.remove(c.getKey());
-				
 			}
 		}
 	}
@@ -49,14 +49,15 @@ public class ClientIrcObject extends PircBot {
 		synchronized(msg_buffer_cache){
 			try {
 				msg_buffer_cache.put(Calendar.getInstance().getTimeInMillis(), e);
+				while ( msg_buffer_cache.size() > 1024 ) 
+					msg_buffer_cache.remove(((TreeMap<Long,IrcEntry>) msg_buffer_cache).firstKey());				
 				Thread.sleep(10);
 			} catch (InterruptedException te) {
 				te.printStackTrace();
 			}
-			while ( msg_buffer_cache.size() > 1024 ) 
-				msg_buffer_cache.remove(msg_buffer_cache.firstKey());			
 		}
 	}
+	
 	public Boolean checkStatus(Long timestamp) {
 		Boolean ret=false;
 		// check new msg from buffer_cache
@@ -82,6 +83,7 @@ public class ClientIrcObject extends PircBot {
 				ret=true;		
 		return ret;
 	}
+	
 	public ClientIrcObject(String nick,String server,String port,String password) {
 		this.setLogin("webirc");
 		this.setName(nick);
@@ -152,15 +154,15 @@ public class ClientIrcObject extends PircBot {
 			if ( s.getNick().equals(sender) ) 
 				addUserEvent(new IrcUserListEntry(IrcUserListEntry.E_JOIN,channel,sender,new IrcUser(s.getPrefix(),s.isOp(),s.hasVoice())));
 		}
-		addMsg(new IrcEntry(System.currentTimeMillis(),0,channel,sender,login+"@"+hostname,"Joined channel "+channel));	
+		addMsg(new IrcEntry(System.currentTimeMillis(),IrcEntryTypes.E_JOIN,channel,sender,login+"@"+hostname,"Joined channel "+channel));	
 	}
 	public void onQuit(String sourceNick, String sourceLogin, String sourceHostname, String reason) {
 		addUserEvent(new IrcUserListEntry(IrcUserListEntry.E_QUIT,null,sourceNick,null));
-		addMsg(new IrcEntry(System.currentTimeMillis(),0,"Server",sourceNick,sourceLogin+"@"+sourceHostname,"Quit "+reason)); 
+		addMsg(new IrcEntry(System.currentTimeMillis(),IrcEntryTypes.E_QUIT,"Server",sourceNick,sourceLogin+"@"+sourceHostname,"Quit "+reason)); 
 	}
 	public void onPart(String channel, String sender, String login, String hostname) {
 		addUserEvent(new IrcUserListEntry(IrcUserListEntry.E_PART,channel,sender,null));
-		addMsg(new IrcEntry(System.currentTimeMillis(),0,channel,sender,login+"@"+hostname,"Leave channel "+channel));
+		addMsg(new IrcEntry(System.currentTimeMillis(),IrcEntryTypes.E_PART,channel,sender,login+"@"+hostname,"Leave channel "+channel));
 		if ( this.getNick().equals(sender) ) 
 			close_channels.add(channel);
 	}

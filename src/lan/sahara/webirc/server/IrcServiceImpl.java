@@ -21,11 +21,28 @@ import com.google.gwt.user.server.rpc.RemoteServiceServlet;
 
 @SuppressWarnings("serial")
 public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
+	Timer sessionTimer = new Timer();
 	Map <String,ClientIrcObject> ircConnections = Collections.synchronizedMap(new HashMap<String,ClientIrcObject>());
+	
+	@Override
+	public void init() {
+		System.err.println(this.getClass().getName() + " init");
+	}
+	@Override
+	public void destroy() {
+		System.err.println(this.getClass().getName() + " destroy");
+		synchronized(ircConnections) {
+			for ( Entry<String, ClientIrcObject> c : ircConnections.entrySet() ) {
+				c.getValue().quitServer("Quit!");
+				c.getValue().disconnect();
+				ircConnections.remove(c.getKey());
+			}
+		}
+		sessionTimer.cancel();
+	}	
 	public IrcServiceImpl() {
-		System.err.println("Starting IrcServiceImpl");
+		System.err.println(this.getClass().getName() + " const");
 		// session check timer
-		Timer sessionTimer = new Timer();
 		sessionTimer.schedule(new TimerTask(){
 			public void run() {
 				synchronized(ircConnections) {
@@ -82,14 +99,16 @@ public class IrcServiceImpl extends RemoteServiceServlet implements IrcService {
 					ircConnections.get(sid).topic.clear();
 				}
 				// read message buffer
-				for ( Entry<Long, IrcEntry> c : ircConnections.get(sid).msg_buffer_cache.entrySet() ) {
-					if ( timestamp < c.getKey()  ) {
-						if ( ret.msg_buffer == null )
-							ret.msg_buffer = new LinkedList<IrcEntry>();
-						ret.msg_buffer.add(c.getValue());
+				synchronized(ircConnections.get(sid).msg_buffer_cache) {
+					for ( Entry<Long, IrcEntry> c : ircConnections.get(sid).msg_buffer_cache.entrySet() ) {
+						if ( timestamp < c.getKey()  ) {
+							if ( ret.msg_buffer == null )
+								ret.msg_buffer = new LinkedList<IrcEntry>();
+							ret.msg_buffer.add(c.getValue());
+						}
 					}
 				}
-				// TODO FIX BROKEN!!!
+				// FIXME: FIX BROKEN!!!
 				// read userlist buffer
 				synchronized( ircConnections.get(sid).userlist_buffer_cache ) {
 					for ( Entry<Long, IrcUserListEntry> c : ircConnections.get(sid).userlist_buffer_cache.entrySet() ) {

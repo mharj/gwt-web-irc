@@ -8,6 +8,7 @@
   <servlet>
     <servlet-name>ircServlet</servlet-name>
     <servlet-class>lan.sahara.webirc.server.IrcServiceImpl</servlet-class>
+    <load-on-startup>1</load-on-startup>
   </servlet>
   
   <servlet-mapping>

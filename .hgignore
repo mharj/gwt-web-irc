@@ -1,6 +1,5 @@
-\.settings
-\.classpath
-\.gwt
+war/WEB-INF/classes/
+.gwt/
 syntax: regexp
 ^war/WEB-INF/lib$
 syntax: regexp

@@ -1,0 +1,1 @@
+Basic Web Irc client project with PircBot library
